@@ -1,30 +1,26 @@
-# Genome Assembly and Annotation Pipeline (Short-Read)
+# Genome Assembly and Annotation Pipeline (Short-Read, Conda-Friendly)
 
 ## Introduction  
-This guide walks through a standard short-read (Illumina) genome assembly and annotation pipeline. Each step includes a brief note explaining **why** it is required.
+This guide walks through a short-read (Illumina) genome assembly and annotation pipeline.  
+All required tools are installed via **conda** to make the workflow easily reproducible and portable.
 
 ---
 
-## Step 1 – System Update and Core Dependencies  
-**Why this step:** Updating the system ensures compatibility and prevents installation errors.
+## Step 1 – Create Conda Environment and Install Core Tools  
+**Why this step:** Using a clean environment avoids conflicts and ensures reproducibility.
 
 ```bash
-sudo apt update
-sudo apt upgrade -y
-sudo apt install -y build-essential wget unzip git python3 python3-pip
+conda create -n genome_assembly_env python=3.9 -y
+conda activate genome_assembly_env
 ```
 
 ---
 
-## Step 2 – Download Raw FASTQ Data (SRA)  
-**Why this step:** Public raw reads can be retrieved from NCBI using the SRA Toolkit.
+## Step 2 – Install and Run SRA Toolkit  
+**Why this step:** Used to download raw FASTQ files from NCBI SRA.
 
 ```bash
-# Install SRA Toolkit
-cd ~
-wget https://ftp-trace.ncbi.nlm.nih.gov/sra/sdk/current/sratoolkit.current-ubuntu64.tar.gz
-tar -xvzf sratoolkit.current-ubuntu64.tar.gz
-export PATH=$PATH:~/sratoolkit.*-ubuntu64/bin
+conda install -c bioconda sra-tools -y
 
 # Download FASTQ files
 fastq-dump --split-files SRRXXXXXXX
@@ -33,29 +29,26 @@ fastq-dump --split-files SRRXXXXXXX
 ---
 
 ## Step 3 – Quality Control of Raw Reads  
-**Why this step:** Detect low-quality regions and adapter contamination before assembly.
+**Why this step:** Detect low-quality regions and adapter contamination.
 
 ```bash
-# Install FastQC
-sudo apt install -y fastqc
+conda install -c bioconda fastqc multiqc -y
 
 # Run FastQC
 mkdir fastqc_reports
 fastqc SRRXXXXXXX_1.fastq SRRXXXXXXX_2.fastq -o fastqc_reports
 
-# (Optional) summarize with MultiQC
-pip3 install multiqc
+# Summarize results
 multiqc fastqc_reports
 ```
 
 ---
 
 ## Step 4 – Trim Low-Quality Bases and Adapters  
-**Why this step:** Trimming improves assembly efficiency and accuracy.
+**Why this step:** Trimming improves assembly quality.
 
 ```bash
-# Install Trim Galore
-pip3 install trim-galore
+conda install -c bioconda trim-galore -y
 
 # Run Trimming
 trim_galore --paired --quality 20 --length 30 --cores 4 SRRXXXXXXX_1.fastq SRRXXXXXXX_2.fastq
@@ -64,7 +57,7 @@ trim_galore --paired --quality 20 --length 30 --cores 4 SRRXXXXXXX_1.fastq SRRXX
 ---
 
 ## Step 5 – Quality Check of Trimmed Reads  
-**Why this step:** Confirm that the trimming step resolved quality issues.
+**Why this step:** Make sure trimming resolved quality issues.
 
 ```bash
 fastqc SRRXXXXXXX_1_val_1.fq SRRXXXXXXX_2_val_2.fq -o fastqc_reports/trimmed
@@ -74,55 +67,47 @@ multiqc fastqc_reports/trimmed
 ---
 
 ## Step 6 – de novo Genome Assembly with SPAdes  
-**Why this step:** Assemble cleaned reads into genome contigs.
+**Why this step:** Assemble cleaned reads into draft genome.
 
 ```bash
-# Install SPAdes
-sudo apt install -y spades
+conda install -c bioconda spades -y
 
-# Run Assembly
-spades.py -1 SRRXXXXXXX_1_val_1.fq -2 SRRXXXXXXX_2_val_2.fq -o spades_output --threads 8 --memory 32
+spades.py -1 SRRXXXXXXX_1_val_1.fq -2 SRRXXXXXXX_2_val_2.fq -o spades_output --threads 8
 ```
 
 ---
 
 ## Step 7 – Evaluate Assembly Quality (QUAST)  
-**Why this step:** Evaluate the quality of the draft genome assembly.
+**Why this step:** Evaluate the quality of the draft assembly.
 
 ```bash
-# Install QUAST
-sudo apt install -y quast
+conda install -c bioconda quast -y
 
-# Run QUAST
 quast spades_output/contigs.fasta -o quast_report
 ```
 
 ---
 
 ## Step 8 – Genome Annotation (Prokka)  
-**Why this step:** Annotate the genome to identify genes and functional elements.
+**Why this step:** Identify genomic features and assign functional annotations.
 
 ```bash
-# Install Prokka
-sudo apt install -y prokka
+conda install -c bioconda prokka -y
 
-# Run Annotation
 prokka --outdir annotation_results --prefix sample1 spades_output/contigs.fasta
 ```
 
 ---
 
 ## Step 9 – Genome Completeness Assessment (BUSCO)  
-**Why this step:** Estimate completeness by checking for conserved single-copy genes.
+**Why this step:** Check for the presence of conserved single-copy genes.
 
 ```bash
-# Install BUSCO and dependencies
-sudo apt install -y busco augustus
+conda install -c bioconda busco -y
+conda install -c bioconda augustus -y
 
-# Download lineage dataset
 busco_download.py --lineage bacteria --output bacteria_odb10
 
-# Run BUSCO
 busco -i spades_output/contigs.fasta -l bacteria_odb10 -o busco_out -m genome --cpu 8
 ```
 
